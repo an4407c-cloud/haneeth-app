@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم المحمية - حنيذ نعيم اليمني</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
+        body { font-family: 'Tajawal', sans-serif; background-color: #f3f4f6; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 pb-20">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ==========================================
+        // 🔴 مفاتيح فايربيس (haneeth-menu) 🔴
+        // ==========================================
+        const firebaseConfig = {
+          apiKey: "AIzaSyCOQFHX34J5Qq_J653lvk_BmwKgrZBGnMA",
+          authDomain: "haneeth-menu.firebaseapp.com",
+          projectId: "haneeth-menu",
+          storageBucket: "haneeth-menu.firebasestorage.app",
+          messagingSenderId: "737415190213",
+          appId: "1:737415190213:web:874034036c8c57ed8a82ac",
+          measurementId: "G-TT7N91MKW2"
+        };
+        // ==========================================
+
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const fallbackImg = "https://images.unsplash.com/photo-1544025162-831114b09ec4?w=400&q=80";
+
+        function AdminPanel() {
+            const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            
+            const [items, setItems] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [isRestaurantOpen, setIsRestaurantOpen] = React.useState(true);
+            
+            const [openTime, setOpenTime] = React.useState('09:00');
+            const [closeTime, setCloseTime] = React.useState('23:00');
+            const [autoTimeEnabled, setAutoTimeEnabled] = React.useState(false);
+
+            const [isDeliveryFree, setIsDeliveryFree] = React.useState(false);
+            const [discountPercentage, setDiscountPercentage] = React.useState(0);
+            const [maxDiscountAmount, setMaxDiscountAmount] = React.useState(0);
+
+            const [newName, setNewName] = React.useState('');
+            const [newPrice, setNewPrice] = React.useState('');
+            const [newType, setNewType] = React.useState('meat');
+            
+            const [imageFile, setImageFile] = React.useState(null);
+            const [isUploading, setIsUploading] = React.useState(false);
+            const fileInputRef = React.useRef(null);
+            
+            const [newPass, setNewPass] = React.useState('');
+                      React.useEffect(() => { 
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        setIsAuthenticated(true);
+                        fetchSettingsAndData();
+                    } else {
+                        setIsAuthenticated(false);
+                        setLoading(false);
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const fetchSettingsAndData = async () => {
+                setLoading(true);
+                try {
+                    const settingsDoc = await db.collection('settings').doc('status').get();
+                    if(settingsDoc.exists) {
+                        const data = settingsDoc.data();
+                        setIsRestaurantOpen(data.isOpen !== undefined ? data.isOpen : true);
+                        if(data.openTime) { setOpenTime(data.openTime); }
+                        if(data.closeTime) { setCloseTime(data.closeTime); }
+                        if(data.autoTimeEnabled !== undefined) { setAutoTimeEnabled(data.autoTimeEnabled); }
+                        if(data.isDeliveryFree !== undefined) { setIsDeliveryFree(data.isDeliveryFree); }
+                        if(data.discountPercentage !== undefined) { setDiscountPercentage(data.discountPercentage); }
+                        if(data.maxDiscountAmount !== undefined) { setMaxDiscountAmount(data.maxDiscountAmount); }
+                    } else {
+                        await db.collection('settings').doc('status').set({ 
+                            isOpen: true, openTime: '09:00', closeTime: '23:00',
+                            autoTimeEnabled: false, isDeliveryFree: false, discountPercentage: 0, maxDiscountAmount: 0
+                        });
+                    }
+
+                    const snapshot = await db.collection('menuItems').get();
+                    if (!snapshot.empty) {
+                        const menuData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        menuData.sort((a, b) => (a.originalId || parseInt(a.id)) - (b.originalId || parseInt(b.id)));
+                        setItems(menuData);
+                    } else { setItems([]); }
+
+                } catch (error) { alert("حدث خطأ في جلب البيانات."); }
+                setLoading(false);
+            };
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                try {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } catch (error) {
+                    alert("❌ البريد الإلكتروني أو كلمة المرور غير صحيحة!");
+                }
+            };
+
+            const handleLogout = () => { auth.signOut(); };
+
+            const handleChangePassword = async () => {
+                if(!newPass.trim()) { alert("الرجاء كتابة كلمة المرور الجديدة"); return; }
+                if(window.confirm("هل أنت متأكد من تغيير كلمة المرور؟")) {
+                    try {
+                        await auth.currentUser.updatePassword(newPass);
+                        setNewPass(''); 
+                        alert("✅ تم تغيير كلمة المرور بنجاح!");
+                    } catch (error) {
+                        alert("❌ لضمان الأمان، يرجى تسجيل الخروج ثم الدخول مجدداً لتتمكن من تغيير الرمز.");
+                    }
+                }
+            };
+
+            const saveWorkingHours = async () => {
+                await db.collection('settings').doc('status').set({ 
+                    openTime: openTime, closeTime: closeTime, autoTimeEnabled: autoTimeEnabled
+                }, { merge: true });
+                alert("✅ تم حفظ مواقيت العمل بنجاح!");
+            };
+
+            const saveDeliveryAndDiscount = async () => {
+                await db.collection('settings').doc('status').set({ 
+                    isDeliveryFree: isDeliveryFree, 
+                    discountPercentage: parseInt(discountPercentage) || 0,
+                    maxDiscountAmount: parseInt(maxDiscountAmount) || 0
+                }, { merge: true });
+                alert("✅ تم حفظ إعدادات التوصيل والخصم بنجاح!");
+            };
+
+            const toggleRestaurantStatus = async () => {
+                const newStatus = !isRestaurantOpen;
+                const msg = newStatus ? 'هل أنت متأكد أنك تريد فتح المطعم؟' : 'هل أنت متأكد أنك تريد إغلاق المطعم؟ ⚠️';
+                if(window.confirm(msg)) {
+                    await db.collection('settings').doc('status').set({ isOpen: newStatus }, { merge: true });
+                    setIsRestaurantOpen(newStatus);
+                }
+            };
+            
+            const handlePriceChange = async (id, newPriceValue) => {
+                await db.collection('menuItems').doc(id.toString()).update({ price: parseInt(newPriceValue) || 0 });
+                fetchSettingsAndData();
+            };
+
+            const handleImgChange = async (id, newImgValue) => {
+                await db.collection('menuItems').doc(id.toString()).update({ img: newImgValue || fallbackImg });
+                fetchSettingsAndData();
+            };
+
+            const handleAvailabilityChange = async (id, statusValue) => {
+                let isAvailable = true; let unavailReason = '';
+                if (statusValue === 'today') { isAvailable = false; unavailReason = 'today'; } 
+                else if (statusValue === 'always') { isAvailable = false; unavailReason = 'always'; }
+                await db.collection('menuItems').doc(id.toString()).update({ isAvailable: isAvailable, unavailReason: unavailReason });
+                fetchSettingsAndData();
+            };
+
+            const deleteItem = async (id, name) => {
+                if(window.confirm(`⚠️ هل أنت متأكد من حذف ( ${name} ) نهائياً؟`)) {
+                    await db.collection('menuItems').doc(id.toString()).delete();
+                    fetchSettingsAndData();
+                }
+            };
+
+            const handleAddItem = async (e) => {
+                e.preventDefault();
+                if(!newName.trim() || !newPrice.trim() || !imageFile) { alert("الرجاء كتابة اسم الصنف والسعر وإرفاق صورة!"); return; }
+                
+                setIsUploading(true);
+
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = async () => {
+                        const canvas = document.createElement("canvas");
+                        const MAX_WIDTH = 400; 
+                        const scaleSize = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        const base64Image = canvas.toDataURL("image/jpeg", 0.6); 
+                        const newId = Date.now().toString();
+
+                        try {
+                            await db.collection('menuItems').doc(newId).set({
+                                id: newId, nameAr: newName, nameEn: newName, nameKu: newName, price: parseInt(newPrice) || 0,
+                                type: newType, img: base64Image, isAvailable: true, unavailReason: '', originalId: Date.now()
+                            });
+                            
+                            setNewName(''); setNewPrice(''); setImageFile(null);
+                            if(fileInputRef.current) fileInputRef.current.value = "";
+                            alert("✅ تم إضافة الصنف بنجاح!");
+                            fetchSettingsAndData();
+                        } catch (error) {
+                            alert("❌ حدث خطأ، تأكد من اتصالك بالإنترنت.");
+                        } finally {
+                            setIsUploading(false);
+                        }
+                    };
+                };
+            };
+                      if (!isAuthenticated) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center border border-gray-200">
+                            <h1 className="text-2xl font-black text-red-800 mb-2">لوحة الإدارة المحمية 🔐</h1>
+                            <p className="text-gray-500 font-bold mb-6">مطعم حنيذ نعيم اليمني</p>
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <input type="email" placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold text-center outline-none" dir="ltr" required />
+                                <input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold text-center outline-none" dir="ltr" required />
+                                <button type="submit" className="w-full bg-red-800 hover:bg-red-900 text-white font-bold py-3 rounded-xl transition shadow-md mt-2">دخول للوحة التحكم 🚀</button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-4xl mx-auto p-4">
+                    <header className="bg-red-800 text-white p-6 rounded-2xl shadow-lg mb-6 text-center flex justify-between items-center">
+                        <div><h1 className="text-2xl font-black mb-1">لوحة الإدارة الذكية ⚙️</h1><p className="text-red-200 font-bold">مطعم حنيذ نعيم اليمني</p></div>
+                        <button onClick={handleLogout} className="bg-red-900 hover:bg-red-950 text-white px-4 py-2 rounded-xl text-sm font-bold transition">تسجيل خروج 🔒</button>
+                    </header>
+
+                    {!loading && (
+                        <div className="mb-8 text-center bg-white p-6 rounded-2xl shadow-md border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 text-gray-800">حالة المطعم (استقبال الطلبات)</h3>
+                            <button onClick={toggleRestaurantStatus} className={`w-full md:w-2/3 mx-auto py-4 rounded-xl font-black text-xl text-white shadow-lg transition-transform transform active:scale-95 ${isRestaurantOpen ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                                {isRestaurantOpen ? '🟢 المطعم مفتوح (اضغط للإغلاق)' : '🔴 المطعم مغلق (اضغط للفتح)'}
+                            </button>
+                            <p className={`font-bold mt-4 text-sm ${isRestaurantOpen ? 'text-green-600' : 'text-red-600'}`}>
+                                {isRestaurantOpen ? 'الزبائن يمكنهم تصفح المنيو وإرسال الطلبات الآن ✅' : 'سلة المشتريات مغلقة حالياً أمام الزبائن ❌'}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="bg-white p-5 rounded-2xl shadow-md border border-gray-200 mb-6">
+                        <h3 className="font-bold text-lg mb-3 text-gray-800">🛵 إعدادات التوصيل والخصومات 💸</h3>
+                        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl mb-4 border border-gray-200">
+                            <span className="font-bold text-sm text-gray-700">التوصيل مجاني للزبائن 🛵</span>
+                            <input type="checkbox" checked={isDeliveryFree} onChange={(e) => setIsDeliveryFree(e.target.checked)} className="w-6 h-6 accent-green-600 cursor-pointer" />
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-3 items-center mb-4">
+                            <div className="flex-1 w-full">
+                                <span className="text-xs text-gray-500 font-bold block mb-1">نسبة الخصم (%): (ضع 0 للإلغاء)</span>
+                                <input type="number" min="0" max="100" value={discountPercentage} onChange={(e) => setDiscountPercentage(e.target.value)} className="w-full border-2 border-gray-300 focus:border-red-500 rounded-xl p-2.5 font-bold text-center outline-none" />
+                            </div>
+                            <div className="flex-1 w-full">
+                                <span className="text-xs text-gray-500 font-bold block mb-1">الحد الأقصى للخصم (دينار):</span>
+                                <input type="number" min="0" value={maxDiscountAmount} onChange={(e) => setMaxDiscountAmount(e.target.value)} className="w-full border-2 border-gray-300 focus:border-red-500 rounded-xl p-2.5 font-bold text-center outline-none" />
+                            </div>
+                        </div>
+                        <button onClick={saveDeliveryAndDiscount} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition shadow-sm">حفظ إعدادات التوصيل والخصم</button>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl shadow-md border border-gray-200 mb-6">
+                        <h3 className="font-bold text-lg mb-3 text-gray-800">⏰ مواقيت العمل الرسمية</h3>
+                        <div className="flex flex-col md:flex-row gap-3 items-center mb-3">
+                            <div className="flex-1 w-full"><span className="text-xs text-gray-500 font-bold block mb-1">وقت الفتح:</span><input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} className="w-full border-2 border-gray-300 rounded-xl p-2.5 font-bold text-center outline-none" /></div>
+                            <div className="flex-1 w-full"><span className="text-xs text-gray-500 font-bold block mb-1">وقت الإغلاق:</span><input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="w-full border-2 border-gray-300 rounded-xl p-2.5 font-bold text-center outline-none" /></div>
+                        </div>
+                        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200">
+                            <span className="font-bold text-sm text-gray-700">تفعيل الإغلاق التلقائي حسب المواقيت 🤖</span>
+                            <input type="checkbox" checked={autoTimeEnabled} onChange={(e) => setAutoTimeEnabled(e.target.checked)} className="w-6 h-6 accent-red-600 cursor-pointer" />
+                        </div>
+                        <button onClick={saveWorkingHours} className="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-2.5 rounded-xl transition shadow-sm">حفظ مواقيت العمل</button>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl shadow-md border border-gray-200 mb-6">
+                        <h3 className="font-bold text-lg mb-3 text-gray-800">🔑 تغيير كلمة مرور لوحة التحكم</h3>
+                        <div className="flex flex-col md:flex-row gap-3">
+                            <input type="password" placeholder="كلمة المرور الجديدة" value={newPass} onChange={(e) => setNewPass(e.target.value)} className="flex-1 border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold outline-none" dir="ltr" />
+                            <button onClick={handleChangePassword} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md">تحديث الرمز</button>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl shadow-md border border-gray-200 mb-8">
+                        <h3 className="font-bold text-lg mb-4 text-gray-800">➕ إضافة صنف جديد</h3>
+                        <form className="flex flex-col gap-3">
+                            <div className="flex flex-col md:flex-row gap-3">
+                                <input type="text" placeholder="اسم الوجبة (مثال: برياني)" value={newName} onChange={(e) => setNewName(e.target.value)} className="flex-1 border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold outline-none" />
+                                <input type="number" placeholder="السعر" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} className="w-full md:w-32 border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold outline-none" />
+                                <select value={newType} onChange={(e) => setNewType(e.target.value)} className="w-full md:w-40 border-2 border-gray-300 focus:border-red-500 rounded-xl p-3 font-bold outline-none bg-white">
+                                    <option value="meat">اللحوم</option>
+                                    <option value="chicken">الدجاج</option>
+                                    <option value="mixed">المناسف</option>
+                                    <option value="sides">الإضافات</option>
+                                    <option value="drinks">المشروبات</option>
+                                </select>
+                            </div>
+                            <div className="flex flex-col md:flex-row gap-3 mt-2">
+                                <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setImageFile(e.target.files[0])} className="flex-1 border-2 border-gray-300 focus:border-red-500 rounded-xl p-2 font-bold outline-none bg-gray-50" />
+                                <button onClick={handleAddItem} disabled={isUploading} className={`text-white font-bold py-3 px-8 rounded-xl transition shadow-md md:w-auto w-full ${isUploading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}>
+                                    {isUploading ? '⏳ جاري الحفظ...' : 'إضافة الصنف'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {loading ? (
+                        <div className="text-center text-xl font-bold text-gray-500">جاري تحميل البيانات... ⏳</div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {items.map(item => {
+                                const isAvail = item.isAvailable === undefined ? true : item.isAvailable;
+                                const currentStatus = isAvail ? 'available' : (item.unavailReason || 'always');
+                                let selectBgClass = 'bg-green-500 hover:bg-green-600';
+                                if (currentStatus === 'today') selectBgClass = 'bg-orange-500 hover:bg-orange-600';
+                                if (currentStatus === 'always') selectBgClass = 'bg-gray-600 hover:bg-gray-700';
+
+                                return (
+                                    <div key={item.id} className={`bg-white p-4 rounded-xl shadow border-2 transition flex flex-col justify-between ${!isAvail ? 'border-red-300 opacity-75 bg-red-50' : 'border-transparent'}`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="font-bold text-lg text-gray-800 line-clamp-1">{item.nameAr}</div>
+                                            <button onClick={() => deleteItem(item.id, item.nameAr)} className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-lg text-sm font-bold transition">حذف 🗑️</button>
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-2">
+                                            <div className="flex-1">
+                                                <span className="text-xs text-gray-500 font-bold block mb-1">السعر (دينار)</span>
+                                                <input type="number" defaultValue={item.price} onBlur={(e) => handlePriceChange(item.id, e.target.value)} className="border-2 border-gray-300 focus:border-red-500 rounded-lg p-2 w-full font-bold outline-none transition text-center" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <span className="text-xs text-gray-500 font-bold block mb-1">الحالة</span>
+                                                <select value={currentStatus} onChange={(e) => handleAvailabilityChange(item.id, e.target.value)} className={`w-full py-2.5 rounded-lg font-bold text-white outline-none transition shadow-sm text-center ${selectBgClass}`}>
+                                                    <option value="available" className="bg-white text-gray-800">✅ متوفر</option>
+                                                    <option value="today" className="bg-white text-gray-800">⏳ مغلق لليوم</option>
+                                                    <option value="always" className="bg-white text-gray-800">❌ مغلق لإشعار آخر</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 pt-3 border-t border-gray-100">
+                                            <span className="text-xs text-gray-400 font-bold block mb-1">تعديل الصورة (رابط نصي):</span>
+                                            <input type="text" defaultValue={item.img} onBlur={(e) => handleImgChange(item.id, e.target.value)} className="bg-gray-50 border border-gray-200 focus:border-red-500 rounded-lg p-2 w-full text-sm outline-none transition text-left" dir="ltr" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AdminPanel />);
+    </script>
+</body>
+</html>
