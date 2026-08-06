@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حنيذ نعيم اليمني - المنيو الإلكتروني</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
+        body { font-family: 'Tajawal', sans-serif; }
+        .rtl { direction: rtl; text-align: right; }
+        .ltr { direction: ltr; text-align: left; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        #loading { text-align: center; margin-top: 20vh; font-size: 1.5rem; color: #b91c1c; font-weight: bold; }
+        #error-box { display: none; background: #fee2e2; color: #991b1b; padding: 20px; margin: 20px; border-radius: 10px; text-align: left; direction: ltr; }
+    </style>
+</head>
+<body class="bg-orange-50 text-gray-800">
+    <script>
+        window.onerror = function(msg, url, lineNo) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error-box').style.display = 'block';
+            document.getElementById('error-msg').innerText = msg + ' (Line: ' + lineNo + ')';
+            return false;
+        };
+    </script>
+    <div id="loading">⏳ جاري تحميل المنيو، يرجى الانتظار...</div>
+    <div id="error-box"><h3>⚠️ حدث خطأ تقني:</h3><p id="error-msg"></p></div>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useEffect } = React;
+        
+        const firebaseConfig = {
+          apiKey: "AIzaSyCOQFHX34J5Qq_J653lvk_BmwKgrZBGnMA",
+          authDomain: "haneeth-menu.firebaseapp.com",
+          projectId: "haneeth-menu",
+          storageBucket: "haneeth-menu.firebasestorage.app",
+          messagingSenderId: "737415190213",
+          appId: "1:737415190213:web:874034036c8c57ed8a82ac",
+          measurementId: "G-TT7N91MKW2"
+        };
+
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
+        const logo = "./6106.jpg";
+        const fallbackImg = "https://images.unsplash.com/photo-1544025162-831114b09ec4?w=400&q=80";
+        const DICT = {
+          ar: { 
+            welcome: 'مرحباً بك في', title: 'حنيذ نعيم اليمني', selectLang: 'الرجاء اختيار اللغة للمتابعة', 
+            aboutTitle: 'نبذة عن المطعم', aboutText: 'مطعم متخصص بالأكلات اليمنية والخليجية مثل : المندي و الحنيذ و المظبي و المدفون وغيرها من الأكلات.',
+            locationBtn: 'موقع المطعم 📍', startMenuBtn: 'عرض المنيو 🚀',
+            catMeat: 'أطباق اللحوم 🥩', catChicken: 'أطباق الدجاج 🍗', catMixed: 'المناسف 🥘', catSides: 'الإضافات 🥗', catDrinks: 'المشروبات 🥤',
+            addCart: 'أضف إلى السلة 🛒', next: 'إتمام الطلب', back: 'رجوع', currency: 'دينار', orderBtn: 'إرسال الطلب الآن 💬', restart: 'طلب جديد', 
+            contactTitle: 'تفاصيل الطلب والاستلام', orderTypeTitle: 'نوع الطلب', 
+            typeDelivery: 'توصيل 🛵', typeTakeaway: 'خارجي 🛍️', typeDineIn: 'صالة 🍽️',
+            areaLabel: 'المنطقة أو الحي', phoneLabel: 'رقم الهاتف', nameLabel: 'الاسم الكريم', tableLabel: 'رقم الطاولة', notesLabel: 'ملاحظات للطلب (اختياري)', 
+            takeawayMsg: 'تم الحجز، سوف يتم التجهيز حين الوصول',
+            errDelivery: 'الرجاء إدخال رقم الهاتف والحي', errTakeaway: 'الرجاء إدخال الاسم ورقم الهاتف', errDineIn: 'الرجاء إدخال رقم الطاولة', dir: 'rtl',
+            soldOutToday: 'نفدت لليوم', restaurantClosedTitle: 'المطعم مغلق حالياً', restaurantClosedMsg: 'نعتذر، المطعم لا يستقبل الطلبات في الوقت الحالي.',
+            billTitle: 'تفاصيل الفاتورة', subTotal: 'المجموع', discount: 'الخصم', deliveryFee: 'أجرة التوصيل', freeDelivery: 'مجاني!', finalTotal: 'الحساب النهائي',
+            locationMsgBill: 'يُحدد بعد إرسال اللوكيشن', locationMsgWa: 'يرجى إرسال اللوكيشن ليتم تحديد مبلغ التوصيل'
+          },
+          en: { 
+            welcome: 'Welcome to', title: 'Haneeth Naim Al-Yemeni', selectLang: 'Please Select Language', 
+            aboutTitle: 'About Us', aboutText: 'Specialized in Yemeni & Gulf cuisine such as Mandi, Haneeth, Madhbi, Madfoon and more.',
+            locationBtn: 'Our Location 📍', startMenuBtn: 'View Menu 🚀',
+            catMeat: 'Meat Dishes 🥩', catChicken: 'Chicken Dishes 🍗', catMixed: 'Mansaf 🥘', catSides: 'Sides 🥗', catDrinks: 'Drinks 🥤',
+            addCart: 'Add to Cart 🛒', next: 'Checkout', back: 'Back', currency: 'IQD', orderBtn: 'Send Order Now 💬', restart: 'New Order', 
+            contactTitle: 'Order & Delivery Details', orderTypeTitle: 'Order Type',
+            typeDelivery: 'Delivery 🛵', typeTakeaway: 'Takeaway 🛍️', typeDineIn: 'Dine-in 🍽️',
+            areaLabel: 'Area / Neighborhood', phoneLabel: 'Phone Number', nameLabel: 'Your Name', tableLabel: 'Table Number', notesLabel: 'Notes (Optional)', 
+            takeawayMsg: 'Reserved. Will be prepared upon arrival',
+            errDelivery: 'Please enter area and phone', errTakeaway: 'Please enter name and phone', errDineIn: 'Please enter table number', dir: 'ltr',
+            soldOutToday: 'Sold Out Today', restaurantClosedTitle: 'Restaurant Closed', restaurantClosedMsg: 'Sorry, we are not accepting orders at this time.',
+            billTitle: 'Bill Summary', subTotal: 'Subtotal', discount: 'Discount', deliveryFee: 'Delivery Fee', freeDelivery: 'Free!', finalTotal: 'Final Total',
+            locationMsgBill: 'Determined via Location', locationMsgWa: 'Please send location to determine delivery fee'
+          },
+          ku: { 
+            welcome: 'بەخێربێیت بۆ چێشتخانەی', title: 'حەنیز نەعیم یەمەنی', selectLang: 'تکایە زمانێک هەڵبژێرە', 
+            aboutTitle: 'دەربارەی ئێمە', aboutText: 'تایبەتە بە خواردنە یەمەنی و کەنداوییەکانی وەکو مەندی، حەنیز، مەزبی، مەدفون و زیاتر.',
+            locationBtn: 'ناونیشانی ئێمە 📍', startMenuBtn: 'بینینی مینیو 🚀',
+            catMeat: 'خواردنەکانی گۆشت 🥩', catChicken: 'خواردنەکانی مریشک 🍗', catMixed: 'مەنسەفەکان 🥘', catSides: 'زیادکراوەکان 🥗', catDrinks: 'خواردنەوەکان 🥤',
+            addCart: 'خستنە سەبەتە 🛒', next: 'تەواوکردنی داواکاری', back: 'گەڕانەوە', currency: 'دینار', orderBtn: 'ناردنی داواکاری ئێستا 💬', restart: 'داواکاری نوێ', 
+            contactTitle: 'زانیاریەکانی داواکاری', orderTypeTitle: 'جۆری داواکاری',
+            typeDelivery: 'گەیاندن 🛵', typeTakeaway: 'بۆ دەرەوە 🛍️', typeDineIn: 'ناوەوە 🍽️',
+            areaLabel: 'گەڕەک / ناوچە', phoneLabel: 'ژمارەی تەلەفۆن', nameLabel: 'ناو', tableLabel: 'ژمارەی مێز', notesLabel: 'تێبینی (ئارەزوومەندانە)', 
+            takeawayMsg: 'حجز کرا، لە کاتی گەیشتن ئامادە دەکرێت',
+            errDelivery: 'تکایە ناوچە و تەلەفۆن بنووسە', errTakeaway: 'تکایە ناو و تەلەفۆن بنووسە', errDineIn: 'تکایە ژمارەی مێز بنووسە', dir: 'rtl',
+            soldOutToday: 'ئەمڕۆ تەواو بووە', restaurantClosedTitle: 'چێشتخانە داخراوە', restaurantClosedMsg: 'ببورە، لە ئێستادا داواکاری وەرناگرین.',
+            billTitle: 'کۆی پسوڵە', subTotal: 'کۆی گشتی', discount: 'داشکاندن', deliveryFee: 'کرێی گەیاندن', freeDelivery: 'خۆڕایی!', finalTotal: 'کۆی کۆتایی',
+            locationMsgBill: 'بەپێی لۆکەیشن دیاری دەکرێت', locationMsgWa: 'تکایە لۆکەیشن بنێرە بۆ دیاریکردنی کرێی گەیاندن'
+          }
+        };
+
+        function App() {
+          const [step, setStep] = useState(1);
+          const [lang, setLang] = useState('ar');
+          const [cart, setCart] = useState({});
+          
+          const [menuData, setMenuData] = useState([]);
+          
+          const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
+          const [isDeliveryFree, setIsDeliveryFree] = useState(false);
+          const [discountPercentage, setDiscountPercentage] = useState(0);
+          const [maxDiscountAmount, setMaxDiscountAmount] = useState(0);
+          const [isLoadingData, setIsLoadingData] = useState(true);
+
+          const [orderType, setOrderType] = useState('delivery');
+          const [customerName, setCustomerName] = useState('');
+          const [tableNumber, setTableNumber] = useState('');
+          const [customerPhone, setCustomerPhone] = useState('');
+          const [customerArea, setCustomerArea] = useState('');
+          const [customerNotes, setCustomerNotes] = useState('');
+          const [formError, setFormError] = useState('');
+
+          const t = DICT[lang];
+          const WHATSAPP_NUMBER = "9647736333441"; 
+          
+          useEffect(() => {
+              const unsubscribeSettings = db.collection('settings').doc('status').onSnapshot((doc) => {
+                  if (doc.exists) {
+                      const data = doc.data();
+                      let openStatus = data.isOpen !== undefined ? data.isOpen : true;
+                      
+                      if (data.autoTimeEnabled && data.openTime && data.closeTime) {
+                          const now = new Date();
+                          const currentHour = now.getHours();
+                          const currentMinutes = now.getMinutes();
+                          const currentTime = currentHour + (currentMinutes / 60);
+
+                          const [openH, openM] = data.openTime.split(':').map(Number);
+                          const openTimeVal = openH + (openM / 60);
+                          
+                          const [closeH, closeM] = data.closeTime.split(':').map(Number);
+                          const closeTimeVal = closeH + (closeM / 60);
+
+                          if (openTimeVal <= closeTimeVal) {
+                              if (currentTime < openTimeVal || currentTime >= closeTimeVal) { openStatus = false; }
+                          } else {
+                              if (currentTime >= closeTimeVal && currentTime < openTimeVal) { openStatus = false; }
+                          }
+                      }
+                      setIsRestaurantOpen(openStatus);
+                      setIsDeliveryFree(data.isDeliveryFree || false);
+                      setDiscountPercentage(data.discountPercentage || 0);
+                      setMaxDiscountAmount(data.maxDiscountAmount || 0);
+                  }
+              });
+
+              const unsubscribeMenu = db.collection('menuItems').onSnapshot((snapshot) => {
+                  const items = [];
+                  snapshot.forEach((doc) => { items.push({ id: doc.id, ...doc.data() }); });
+                  items.sort((a, b) => (a.originalId || parseInt(a.id)) - (b.originalId || parseInt(b.id)));
+                  setMenuData(items);
+                  setIsLoadingData(false);
+              });
+
+              return () => { unsubscribeSettings(); unsubscribeMenu(); };
+          }, []);
+
+          const handleNext = () => { setStep(step + 1); window.scrollTo(0,0); };
+          const handleBack = () => { setStep(step - 1); setFormError(''); window.scrollTo(0,0); };
+          const handleRestart = () => { setStep(1); setCart({}); setCustomerName(''); setTableNumber(''); setCustomerPhone(''); setCustomerArea(''); setCustomerNotes(''); setFormError(''); window.scrollTo(0,0); };
+          
+          const addToCart = (id) => setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+          const decreaseFromCart = (id) => {
+              setCart(prev => {
+                  const current = prev[id] || 0;
+                  if (current <= 1) { const copy = { ...prev }; delete copy[id]; return copy; }
+                  return { ...prev, [id]: current - 1 };
+              });
+          };
+
+          const totalItems = Object.values(cart).reduce((a, b) => a + b, 0);
+          
+          const calculateBill = () => {
+              let subTotal = 0;
+              Object.keys(cart).forEach(id => {
+                  const item = menuData.find(i => String(i.id) === String(id));
+                  if (item) subTotal += item.price * cart[id];
+              });
+
+              let discountValue = 0;
+              if (discountPercentage > 0) {
+                  discountValue = (subTotal * discountPercentage) / 100;
+                  if (maxDiscountAmount > 0 && discountValue > maxDiscountAmount) {
+                      discountValue = maxDiscountAmount;
+                  }
+              }
+
+              const finalTotal = subTotal - discountValue;
+
+              return { subTotal, discountValue, finalTotal };
+          };
+
+          const bill = calculateBill();
+          const handleSendOrder = (e) => {
+            e.preventDefault(); 
+            let hasError = false;
+            if (orderType === 'delivery' && (!customerPhone.trim() || !customerArea.trim())) { hasError = true; setFormError(t.errDelivery); }
+            if (orderType === 'takeaway' && (!customerPhone.trim() || !customerName.trim())) { hasError = true; setFormError(t.errTakeaway); }
+            if (orderType === 'dineIn' && !tableNumber.trim()) { hasError = true; setFormError(t.errDineIn); }
+            
+            if (!hasError) { 
+                window.location.href = getWhatsAppUrl(); 
+            }
+          };
+
+          const getWhatsAppUrl = () => {
+            let msg = `*طلب جديد 🛒*\n------------------------\n*تفاصيل الطلب:*\n`;
+            Object.keys(cart).forEach(id => {
+              const item = menuData.find(i => String(i.id) === String(id));
+              if (item) msg += `- ${cart[id]}x ${item.nameAr} (${(item.price * cart[id]).toLocaleString()} دينار)\n`;
+            });
+            
+            msg += `------------------------\n*معلومات الاستلام:*\n`;
+            if (orderType === 'dineIn') {
+                msg += `- نوع الطلب: صالة (داخل المطعم) 🍽️\n`;
+                msg += `- رقم الطاولة: ${tableNumber}\n`;
+            } else if (orderType === 'takeaway') {
+                msg += `- نوع الطلب: سفري (خارجي) 🛍️\n`;
+                msg += `- الاسم : ${customerName}\n`;
+                msg += `- رقم الهاتف: ${customerPhone}\n`;
+            } else {
+                msg += `- نوع الطلب: توصيل 🛵\n`;
+                msg += `- الحي/المنطقة: ${customerArea}\n`;
+                msg += `- رقم الهاتف: ${customerPhone}\n`;
+            }
+
+            if (customerNotes.trim()) msg += `- ملاحظات: ${customerNotes}\n`;
+            
+            msg += `------------------------\n*الفاتورة:*\n`;
+            msg += `المجموع: ${bill.subTotal.toLocaleString()} دينار\n`;
+            if(bill.discountValue > 0) msg += `الخصم: -${bill.discountValue.toLocaleString()} دينار\n`;
+            if(orderType === 'delivery') {
+                msg += `أجرة التوصيل: ${isDeliveryFree ? 'مجاني' : t.locationMsgWa}\n`;
+            }
+            msg += `*الحساب النهائي:* ${bill.finalTotal.toLocaleString()} دينار\n`;
+
+            return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+          };
+          
+          const renderCategory = (type, title) => {
+            const items = menuData.filter(item => item.type === type && item.unavailReason !== 'always');
+            if(items.length === 0) return null;
+            return (
+              <div className="mb-10">
+                <h3 className="bg-red-700 text-white font-bold py-2 px-4 rounded-xl mb-4 shadow-md text-lg">{title}</h3>
+                <div className="space-y-4">
+                  {items.map((item) => {
+                    const isAvail = item.isAvailable === undefined ? true : item.isAvailable;
+                    const qty = cart[item.id] || 0;
+                    return (
+                    <div key={item.id} className={`bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex h-32 transition ${!isAvail ? 'opacity-60 grayscale' : ''}`}>
+                      <div className="w-1/3 min-w-[120px] max-w-[140px] shrink-0 relative">
+                        <img src={item.img} onError={(e) => { e.target.onerror = null; e.target.src = fallbackImg; }} alt={item.nameAr} className="w-full h-full object-cover" />
+                        {!isAvail && (<div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center"><span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow-lg">{t.soldOutToday}</span></div>)}
+                      </div>
+                      <div className="w-2/3 p-3 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-bold text-gray-900 text-sm mb-1">{lang === 'en' ? item.nameEn : (lang === 'ku' ? item.nameKu : item.nameAr)}</h4>
+                          <div className="font-black text-red-600 text-sm mb-2">{item.price.toLocaleString()} {t.currency}</div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div className="font-bold text-sm"></div>
+                          {isAvail && isRestaurantOpen ? (
+                              qty > 0 ? (
+                                  <div className="flex items-center gap-2 bg-orange-100 rounded-lg p-1 shadow-sm">
+                                      <button onClick={() => decreaseFromCart(item.id)} className="w-7 h-7 bg-white text-orange-900 rounded-md font-bold shadow flex items-center justify-center text-sm">-</button>
+                                      <span className="font-black text-orange-900 text-sm px-1.5">{qty}</span>
+                                      <button onClick={() => addToCart(item.id)} className="w-7 h-7 bg-orange-600 text-white rounded-md font-bold shadow flex items-center justify-center text-sm">+</button>
+                                  </div>
+                              ) : ( <button onClick={() => addToCart(item.id)} className="bg-orange-100 hover:bg-orange-200 text-orange-900 text-xs font-bold px-4 py-2 rounded-lg transition">{t.addCart}</button> )
+                          ) : !isAvail ? ( <span className="text-red-600 text-xs font-black">{t.soldOutToday}</span> ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )})}
+                </div>
+              </div>
+            );
+          };
+
+          if (isLoadingData) {
+              return <div className="min-h-screen flex items-center justify-center text-xl font-bold text-red-800 bg-orange-50">جاري تحديث المنيو... ⏳</div>;
+          }
+
+          return (
+            <div className={`min-h-screen pb-20 flex flex-col ${t.dir === 'rtl' ? 'rtl' : 'ltr'} bg-orange-50`} dir={t.dir}>
+              <header className="bg-red-700 text-white p-4 text-center sticky top-0 z-50 shadow-md">
+                <h1 className="text-xl font-bold">{t.title}</h1>
+              </header>
+
+              {!isRestaurantOpen && (
+                  <div className="bg-red-100 border-b-4 border-red-600 text-red-800 p-4 text-center font-bold sticky top-[60px] z-40 shadow-sm">
+                      <h3 className="text-lg mb-1">🔴 {t.restaurantClosedTitle}</h3><p className="text-sm">{t.restaurantClosedMsg}</p>
+                  </div>
+              )}
+
+              <main className="max-w-md w-full mx-auto p-4 mt-2 flex-grow">
+                {step === 1 && (
+                  <div className="bg-white p-8 rounded-3xl shadow-xl animate-fade-in text-center mt-6 border border-gray-100">
+                    <img src={logo} onError={(e) => { e.target.style.display = 'none'; }} alt="Logo" className="w-36 h-36 mx-auto mb-4 rounded-full shadow-lg object-cover border-4 border-orange-100" />
+                    <h2 className="text-lg font-bold text-gray-500 mb-1">{t.welcome}</h2>
+                    <h1 className="text-3xl font-black text-red-800 mb-8">{t.title}</h1>
+                    <div className="w-20 h-1 bg-red-200 mx-auto mb-8 rounded-full"></div>
+                    <h3 className="text-md font-bold text-gray-700 mb-5">{t.selectLang}</h3>
+                    <div className="space-y-4">
+                      <button onClick={() => { setLang('ar'); setStep(2); window.scrollTo(0,0); }} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-4 rounded-xl shadow-md transition">العربية</button>
+                      <button onClick={() => { setLang('en'); setStep(2); window.scrollTo(0,0); }} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-4 rounded-xl shadow-md transition">English</button>
+                      <button onClick={() => { setLang('ku'); setStep(2); window.scrollTo(0,0); }} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-4 rounded-xl shadow-md transition">کوردی</button>
+                    </div>
+                  </div>
+                )}
+                
+                {step === 2 && (
+                  <div className="bg-white p-8 rounded-3xl shadow-xl animate-fade-in text-center mt-6 border border-gray-100">
+                    <img src={logo} onError={(e) => { e.target.style.display = 'none'; }} alt="Logo" className="w-24 h-24 mx-auto mb-4 rounded-full shadow-md object-cover border-2 border-red-100" />
+                    <h2 className="text-2xl font-black text-red-800 mb-4">{t.aboutTitle}</h2>
+                    <p className="text-gray-700 font-bold leading-relaxed mb-8">{t.aboutText}</p>
+                    <a href="https://maps.app.goo.gl/VG6irL3KhGKxMZDz7" target="_blank" rel="noopener noreferrer" className="block w-full bg-blue-500 hover:bg-blue-600 text-white font-bold text-lg py-4 rounded-xl shadow-md transition mb-4">{t.locationBtn}</a>
+                    <button onClick={() => { setStep(3); window.scrollTo(0,0); }} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-4 rounded-xl shadow-md transition">{t.startMenuBtn}</button>
+                    <button onClick={() => { setStep(1); window.scrollTo(0,0); }} className="w-full mt-4 text-gray-500 font-bold underline">{t.back}</button>
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="animate-fade-in pb-40">
+                    {renderCategory('meat', t.catMeat)}
+                    {renderCategory('chicken', t.catChicken)}
+                    {renderCategory('mixed', t.catMixed)}
+                    {renderCategory('sides', t.catSides)}
+                    {renderCategory('drinks', t.catDrinks)}
+
+                    {isRestaurantOpen && (
+                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] z-50 flex justify-center">
+                           <div className="max-w-md w-full flex gap-3">
+                               <button onClick={handleBack} className="w-1/3 bg-gray-100 text-gray-700 font-bold py-4 rounded-xl transition">{t.back}</button>
+                               <button disabled={totalItems === 0} className={`w-2/3 font-bold py-4 rounded-xl text-lg transition shadow-lg ${totalItems > 0 ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 text-gray-400'}`} onClick={handleNext}>
+                                 {t.next} {totalItems > 0 && `(${bill.finalTotal.toLocaleString()} ${t.currency})`}
+                               </button>
+                           </div>
+                        </div>
+                    )}
+                    {!isRestaurantOpen && (
+                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-100 border-t z-50 flex justify-center">
+                            <button onClick={handleBack} className="max-w-md w-full bg-gray-300 text-gray-700 font-bold py-4 rounded-xl">{t.back}</button>
+                        </div>
+                    )}
+                  </div>
+                )}
+
+                {step === 4 && isRestaurantOpen && (
+                  <div className="bg-white p-6 rounded-2xl shadow-lg animate-fade-in mt-4 border border-gray-100">
+                    <h2 className="text-xl font-bold text-red-800 mb-6 text-center border-b pb-4">{t.contactTitle}</h2>
+                    
+                    <div className="mb-6">
+                        <label className="block text-sm font-bold text-gray-700 mb-3 text-center">{t.orderTypeTitle}</label>
+                        <div className="flex gap-2 bg-gray-100 p-1.5 rounded-xl">
+                            <button onClick={() => {setOrderType('delivery'); setFormError('');}} className={`flex-1 py-2 px-1 text-sm font-bold rounded-lg transition ${orderType === 'delivery' ? 'bg-red-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'}`}>{t.typeDelivery}</button>
+                            <button onClick={() => {setOrderType('takeaway'); setFormError('');}} className={`flex-1 py-2 px-1 text-sm font-bold rounded-lg transition ${orderType === 'takeaway' ? 'bg-red-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'}`}>{t.typeTakeaway}</button>
+                            <button onClick={() => {setOrderType('dineIn'); setFormError('');}} className={`flex-1 py-2 px-1 text-sm font-bold rounded-lg transition ${orderType === 'dineIn' ? 'bg-red-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'}`}>{t.typeDineIn}</button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      {orderType === 'delivery' && (
+                          <>
+                            <div className="relative">
+                              <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-red-600">{t.areaLabel}</span>
+                              <input type="text" value={customerArea} onChange={(e) => { setCustomerArea(e.target.value); setFormError(''); }} className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800" />
+                            </div>
+                            <div className="relative mt-8">
+                              <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-red-600">{t.phoneLabel}</span>
+                              <input type="tel" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setFormError(''); }} dir="ltr" className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800 text-left" />
+                            </div>
+                          </>
+                      )}
+
+                      {orderType === 'takeaway' && (
+                          <>
+                            <div className="relative">
+                              <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-red-600">{t.nameLabel}</span>
+                              <input type="text" value={customerName} onChange={(e) => { setCustomerName(e.target.value); setFormError(''); }} className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800" />
+                            </div>
+                            <div className="relative mt-8">
+                              <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-red-600">{t.phoneLabel}</span>
+                              <input type="tel" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setFormError(''); }} dir="ltr" className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800 text-left" />
+                            </div>
+                            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-sm font-bold text-center shadow-inner">ℹ️ {t.takeawayMsg}</div>
+                          </>
+                      )}
+
+                      {orderType === 'dineIn' && (
+                          <>
+                            <div className="relative">
+                              <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-red-600">{t.tableLabel}</span>
+                              <input type="number" value={tableNumber} onChange={(e) => { setTableNumber(e.target.value); setFormError(''); }} className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800" />
+                            </div>
+                          </>
+                      )}
+
+                      <div className="relative mt-8">
+                        <span className="absolute -top-3 right-3 bg-white px-2 text-sm font-bold text-gray-500">{t.notesLabel}</span>
+                        <textarea value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} rows="3" className="w-full border-2 border-gray-300 focus:border-red-500 p-4 rounded-xl outline-none transition font-bold text-gray-800 resize-none"></textarea>
+                      </div>
+
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mt-6">
+                          <h4 className="font-bold text-gray-800 border-b pb-2 mb-3">{t.billTitle}</h4>
+                          <div className="flex justify-between mb-2 text-sm font-bold text-gray-600"><span>{t.subTotal}:</span><span>{bill.subTotal.toLocaleString()} {t.currency}</span></div>
+                          
+                          {bill.discountValue > 0 && (
+                              <div className="flex justify-between mb-2 text-sm font-bold text-green-600"><span>{t.discount} ({discountPercentage}%):</span><span>- {bill.discountValue.toLocaleString()} {t.currency}</span></div>
+                          )}
+                          
+                          {orderType === 'delivery' && (
+                              <div className="flex justify-between items-center mb-2 text-sm font-bold text-gray-600">
+                                  <span>{t.deliveryFee}:</span>
+                                  <span className={isDeliveryFree ? "text-green-600" : "text-orange-600 text-[11px]"}>{isDeliveryFree ? t.freeDelivery : t.locationMsgBill}</span>
+                              </div>
+                          )}
+                          
+                          <div className="flex justify-between mt-3 pt-3 border-t-2 border-gray-200 font-black text-lg text-red-800">
+                              <span>{t.finalTotal}:</span><span>{bill.finalTotal.toLocaleString()} {t.currency}</span>
+                          </div>
+                      </div>
+
+                      {formError && <p className="text-red-600 text-center font-bold bg-red-50 p-3 rounded-xl border border-red-100">{formError}</p>}
+                      
+                      <button onClick={handleSendOrder} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold text-center text-lg py-4 rounded-xl mt-2 shadow-md transition">
+                        {t.orderBtn}
+                      </button>
+                    </div>
+                    
+                    <div className="mt-8 pt-4 border-t flex flex-col gap-3">
+                      <button onClick={handleBack} className="w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-100 transition">{t.back}</button>
+                      <button onClick={handleRestart} className="w-full text-red-600 font-bold py-2 underline">{t.restart}</button>
+                    </div>
+                  </div>
+                )}
+              </main>
+
+              <footer className="max-w-md w-full mx-auto p-4 mt-auto mb-10 text-center border-t border-orange-200 pt-6 opacity-80 hover:opacity-100 transition-opacity duration-300">
+                  <p className="text-xs text-gray-500 font-bold mb-1">تمت البرمجة والتصميم بواسطة 💻</p>
+                  <h4 className="text-lg font-black text-red-800 mb-2">أنس نعيم</h4>
+                  <div className="flex justify-center items-center gap-4 text-sm font-bold text-gray-600" dir="ltr">
+                      <a href="tel:07718549814" className="hover:text-red-600 transition flex items-center gap-1">07718549814 📞</a>
+                      <span className="text-orange-200">|</span>
+                      <a href="tel:07883366443" className="hover:text-red-600 transition flex items-center gap-1">07883366443 📞</a>
+                  </div>
+              </footer>
+
+            </div>
+          );
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
