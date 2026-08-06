@@ -21,9 +21,13 @@ jobs:
     - name: Install Dependencies
       run: npm install
 
-    - name: Build Capacitor App
+    - name: Build Capacitor App and Icons
       run: |
+        npm install -D @capacitor/assets
+        mkdir -p assets
+        cp icon.png assets/icon.png || echo "No icon.png uploaded"
         npx cap add android
+        npx @capacitor/assets generate --android || echo "Icon generation skipped"
         npx cap copy android
 
     - name: Setup Java
@@ -43,4 +47,3 @@ jobs:
       with:
         name: Haneeth-App-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
-        
