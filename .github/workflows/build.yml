@@ -25,9 +25,9 @@ jobs:
       run: |
         npm install -D @capacitor/assets
         mkdir -p assets
-        cp icon.png assets/icon.png || echo "No icon.png uploaded"
+        cp icon.png assets/icon.png 2>/dev/null || cp www/icon.png assets/icon.png 2>/dev/null || cp www/6106.jpg assets/icon.png 2>/dev/null || echo "No image found"
         npx cap add android
-        npx @capacitor/assets generate --android || echo "Icon generation skipped"
+        npx @capacitor/assets generate --android || true
         npx cap copy android
 
     - name: Setup Java
